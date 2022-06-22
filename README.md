@@ -1,0 +1,2 @@
+# Todo-App-UI-Web
+This project contains the capabilties of HTML, CSS. During the development of this project you will understand that how do you connect the HTML pages with CSS files and style the pages, you will be developing styled static application containing HTML files and CSS files. And understand the difference between Internal CSS, External CSS and Inline CSS and CSS properties like margin, display, box property, padding etc.
