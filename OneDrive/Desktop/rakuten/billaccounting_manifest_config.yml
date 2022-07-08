@@ -1,0 +1,1112 @@
+affinityrules:
+- constraints:
+  - {target: -host, type: infrastructure}
+  name: different_host
+apphooks: {postdestroy: python3 postdestroy.py, precreate: python3.4 precreate.py}
+billaccount:
+  affinityrules: [different_host]
+  compute:
+    cpu: {cores: 2, isol: false, reserve: false}
+    memory: 4G
+  env: {SPRING_PROFILES_ACTIVE: rcp_staging, app.password.encoder: SHA2, SW_AGENT_COLLECTOR_BACKEND_SERVICES: "sixthsense-collector.t070-u000209.svc.cluster.local:11800"}
+  envFrom:
+  - configMapRef: {name: bas-v1-env-cfg}
+  hpa:
+    metrics:
+    - pods:
+        metric: {name: cpu_usage}
+        target: {averageValue: 500m, type: AverageValue}
+      type: Pods
+    - resource:
+        name: memory
+        target: {averageUtilization: 50, type: Utilization}
+      type: Resource
+  image: {engine: docker, entrypoint: entry.sh, imagePullPolicy: IfNotPresent, init_mode: false,
+    name: mavenir/b2b-bss/billaccountingservice, version: rsb.aug4}
+  labels: {app: billaccountingservice}
+  annotations:
+    svcVersion: "v1"
+    nwFnPrefix: "mvnr-mtcil-appln-billaccountingservice"
+    mtcil.com/tmaas: "'{ \"vendorId\": \"mvnr\", \"mtcilId\": \"mtcil\", \"nfClass\": \"appln\", \"nfType\": \"billing\", \"nfId\": \"billing1\", \"nfServiceId\": \"billaccountingservice\", \"nfServiceType\": \"billaccountingservice\" }'"
+    mtcil.com/tmaas.nf.nfs.count: "\"9\""
+    mtcil.com/tmaas.nf.nfVersion: "\"1.8.1-1\""
+    mtcil.com/tmaas.nf.nfs.nfsi.minReady: "\"3\""
+    topogw.fqdn: "mtcil-topo-gw-np-0.{{APP_NS}}.svc.cluster.local:8080"
+    prometheus.io/path: "/actuator/prometheus"
+    prometheus.io/port: "\"8088\""
+    prometheus.io/scrape: "\"true\""
+    sidecar.istio.io/inject: "\"true\""
+  sidecars:
+    - name: cim
+      image: mavenir/b2b-bss/cim:v2.0.2-p1
+      imagePullPolicy: Always
+      env:
+       - name: MS_CONFIG_REVISION
+         valueFrom:
+           configMapKeyRef:
+             name: bas-v1-mgmt-cfg
+             key: revision
+       - name: K8S_POD_ID
+         valueFrom:
+           fieldRef:
+             fieldPath: metadata.name
+       - name: K8S_NAMESPACE
+         valueFrom:
+           fieldRef:
+             fieldPath: metadata.namespace
+       - name: MICROSERVICE_NAME
+         value: billaccountingservice
+       - name: NF_PREFIX
+         value: mvnr-mtcil-appln-billaccountingservice
+       - name: NF_TYPE
+         value: appln
+       - name: NF
+         value: billaccountingservice
+       - name: ENV_SERVICE_ID
+         value: "billaccounting"
+       - name: APP_PORT
+         value: "8081"
+      envFrom:
+        - configMapRef:
+            name: bas-v1-env-cfg
+      command: ["/bin/bash","-c","NatsSubFb"]
+      resources:
+         limits:
+            cpu: 1
+            memory: 1Gi
+
+  multinode: true
+  multinode_max: 3
+  multinode_min: 2
+  name: billaccountingservice
+  norootfs: true
+  rolling_upgrade: true
+  services:
+  - annotations: {app: billaccountingservice}
+    labels: {name: billaccountingservice}
+    name: billaccounting
+    ports:
+    - {name: http, port: 8081, protocol: TCP, target_port: 8081}
+    - {name: grpc, port: 7000, protocol: TCP, targetPort: 7000}
+    scope: pod
+    type: ClusterIP
+  volumeMounts:
+  - {mountPath: /app/config, name: bas-app-env-config}
+  - {mountPath: /opt/conf/, name: cim-config}
+  - {mountPath: /config/all/, name: billaccountservice-all-config}
+  - {mountPath: /config/cfg1/, name: billaccountservice-config1}
+  - {mountPath: /config/cfg2/, name: billaccountservice-config2}
+  - {mountPath: /config/events/, name: billaccountservice-events}
+  - {mountPath: /app/config2/, name: bas-config4}
+  volumes:
+  - configMap:
+      items:
+      - {key: application.properties, path: application.properties}
+      - {key: application-rcp_staging.properties, path: application-rcp_staging.properties}
+      - {key: bootstrap.properties, path: bootstrap.properties}
+      - {key: log4j2.xml, path: log4j2.xml}
+      - {key: bas-metrics.json, path: bas-metrics.json}
+      name: bas-v1-static-cfg
+    name: bas-app-env-config
+  - configMap:
+      items:
+      - {key: bas-localhost.p12, path: bas-localhost.p12}
+      - {key: es-truststore.p12, path: es-truststore.p12}
+      - {key: vault-truststore.p12, path: vault-truststore.p12}
+      name: bas-app-cert-config
+    name: bas-config4
+  - configMap:
+      defaultMode: 420
+      items:
+      - key: cim.json
+        path: cim.json
+      name: bas-v1-mgmt-cfg
+    name: cim-config
+  - configMap:
+      defaultMode: 420
+      name: bas-v1-static-cfg
+    name: billaccountservice-all-config
+  - configMap:
+      defaultMode: 420
+      items:
+      - key: config1.ini
+        path: config1.ini
+      name: bas-v1-static-cfg
+    name: billaccountservice-config1
+  - configMap:
+      defaultMode: 420
+      items:
+      - key: events.json
+        path: events.json
+      name: bas-v1-eventdef-cfg
+    name: billaccountservice-events
+  - configMap:
+      defaultMode: 420
+      items:
+      - key: config2.ini
+        path: config2.ini
+      name: bas-v1-static-cfg
+    name: billaccountservice-config2
+
+clone: enabled
+name: billaccountingservice
+numa_aware: true
+roles: [billaccount]
+skip_headless_service: true
+snapshot: enabled
+version: '1.0'
+
+
+
+################### config file###########
+
+apiVersion: v1
+binaryData:
+  bas-localhost.p12: MIIgpXyRR0xhVSqTa67cqtfnV3PU6yI60PR1r1qiVPhgirx5rWLbMifG3a5sUj3LEkQohxo+vOQPtdzRMDhogOresvnbenOTIobSO6p89gL2q5GLwemNtJKrW1zOnoDS9o1tqQFzWWJ2y/WD1ajKuKZv3swvx7tCZHFfjtzFdPnrtpdF2cUUXtp50ba1Jjzd1rIsJKiVqNa7QTCKqyoqkWjhZnTSOaN+LQ+cZ7dU5k0Dapom+L1J1TKC4
+kind: ConfigMap
+metadata:
+    name: bas-app-cert-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bas-v1-static-cfg
+#  namespace: mvnr-mtcil-appln-billing-billing1
+  labels:
+    microSvcName: billaccountingservice
+    mtcilId: mtcil
+  annotations:
+    mtcil.com/tmaas: '{
+      "vendorId": "mvnr",
+      "mtcilId": "mtcil",
+      "nfClass": "appln",
+      "nfType": "billing",
+      "nfId": "billing1",
+      "nfServiceId": "billaccountingservice",
+      "nfServiceType": "billaccountingservice"
+    }'
+    svcVersion: "v1"
+#    nwFnPrefix: mvnr-mtcil-appln-billing-billing1
+data:
+  __CFG_TYPE: "static-cfg"
+  config1.ini: |
+    eth0=0.0.0.0
+    eth2="0.0.0.0"
+    role="active"
+  config2.ini: |
+    max_queue=5000
+    max_context=3000
+  bas-metrics.json: |
+      {
+        "metricsDefinitions": [
+        {
+          "name": "PYMT_RECEIVED_CNT",
+          "description": "No of payments received (Rakuten Bank) in an hour",
+          "type": "Counter",
+          "peer": [
+            "BillAccounting"
+          ]
+        },
+        {
+          "name": "PYMT_RECEIVED_SUCC_CNT",
+          "description": "No of Payments successfully Processed",
+          "type": "Counter",
+          "peer": [
+            "BillAccounting"
+          ]
+        },
+        {
+          "name": "PYMT_RECEIVED_FAILED_CNT",
+          "description": "No of Payments failed in posting",
+          "type": "Counter",
+          "peer": [
+            "BillAccounting"
+          ]
+        },
+        {
+          "name": "BILLING_API_HISTOGRAM",
+          "description": "histogram for each API",
+          "type": "Histogram",
+          "peer": [
+            "BillAccounting"
+          ]
+        },
+        {
+          "name": "BILLING_TECHNICAL_KPI",
+          "description": "No of Success/Failure count basis on technical failures",
+          "type": "Counter",
+          "peer": [
+            "BillAccounting"
+          ]
+        }
+      ]
+      }
+
+    
+  application-dev.properties: |+
+      spring.couchbase.connection-string=[240b:c0e0:104:544f:9717:2:7:b01],[240b:c0e0:104:544f:9717:2:7:b02],[240b:c0e0:104:544f:9717:2:7:b03]
+      spring.couchbase.username=**
+      spring.couchbase.password=**
+      billing.common.couchbase-bucket-name=billing
+
+      elastic.host=opendistro-elasticsearch-client-service.{{APP_NS}}.svc.cluster.local
+      elastic.port=9200
+      elastic.username=**
+      elastic.password=**
+      elastic.scheme=https
+      elastic.key-store=classpath:config2/bas-truststore.p12
+      elastic.key-store-password=**
+
+      billing.common.audit-log.write-audit-log-to-file=true
+      billing.common.audit-log.audit-logger-name=audit
+
+      billing.common.audit-log.write-audit-log-to-es=true
+      billing.common.audit-log.elastic.host=opendistro-elasticsearch-client-service.{{APP_NS}}.svc.cluster.local
+      billing.common.audit-log.elastic.port=9200
+      billing.common.audit-log.elastic.scheme=https
+      billing.common.audit-log.elastic.index=billing-audit-logs
+
+      billing.common.audit-log.elastic.replicate-to-kafka-topic=true
+      billing.common.audit-log.kafka-mirror.bootstrap-servers=mtcil-kafka-cl-0.{{APP_NS}}.svc.cluster.local:9092
+      billing.common.audit-log.kafka-mirror.elastic-search-replication-topic=es-replication
+
+      grpc.port=7000
+
+      kafka.server=mtcil-kafka-cl-0.{{APP_NS}}.svc.cluster.local:9092
+      kafka.consumer-group=group_payment_update
+      kafka.topic=PaymentUpdt
+
+      server.ssl.key-store-type=PKCS12
+      server.ssl.key-store=classpath:config2/bas-localhost.p12
+      server.ssl.key-store-password=**
+      server.ssl.key-alias=bas-localhost
+      server.http.port=8081
+      server.port=8843
+  application.properties: |
+      application.name=bill-accounting-service
+      application.version=1
+      application.license=All rights reserved by Mavenir Systems
+      application.description=Provides bill accounting services
+
+      server.servlet.context-path=/bas
+      spring.application.name=bill-accounting-service
+      spring.profiles.active=dev
+
+      bas.ledger-info-fetch-days=180
+      bas.date-format=ddMMyyyy
+      bas.date-time-format=yyyy-MM-dd'T'HH:mm:ss.SSS
+      bas.nats-appender-container-name=bas-service-container
+
+      billing.common.ktab.billing-account-ktab=3001_bsBillAcc
+      billing.common.ktab.bill-cycle-ktab=3008_bsBillCycle
+      billing.common.ktab.dynamic-bill-cycle-ktab=3010_bsBillRunDocument
+      billing.common.ktab.billing-plan-ktab=3002_bsBillPlan
+      billing.common.ktab.bill-adjustment-ktab=3003_bsBillAdjustment
+      billing.common.ktab.account-ledger-ktab=3004_bsBillAccountLedger
+      billing.common.ktab.itemized-voice-ktab=5001_bsBepV
+      billing.common.ktab.itemized-sms-ktab=5002_bsBepS
+      billing.common.ktab.itemized-data-ktab=5003_bsBepD
+      billing.common.ktab.invoice-data-ktab=2001_bsBGI
+      billing.common.ktab.rakuten-to-payment-ktab=6001_bsPSP
+      billing.common.ktab.unbilled-ktab=2002_bsUBL
+      billing.common.ktab.dunning-data-ktab=1001_bsCollections
+      billing.common.ktab.subscription-mapping-ktab=3005_bsSubsMap
+      billing.common.ktab.unbilled-account-data-ktab=3006_bsUAD
+      billing.common.ktab.acccount-bill-cycle-data-ktab=3011_bsBillAccount
+      billing.common.ktab.payment-history-ktab=6002_bsPaymentHistory
+      billing.common.ktab.payment-mode-ktab=6001_bsPaymentMode
+      billing.common.ktab.ntt-billing-info-ktab=7001_bsBillLoadElastic
+      billing.common.ktab.barcode-ktab=2003_bsBarCode
+      billing.common.ktab.sales-report-ktab=8001_bsSalesReport
+      billing.common.ktab.subscriber-ktab=Line
+      billing.common.ktab.subscriber-alias-ktab=Line-Alias
+
+
+      ba.metricsDefinitionFilePath=/app/config/bas-metrics.json
+      logging.config=/app/config/log4j2.xml
+
+
+
+  log4j2.xml: |
+      <?xml version="1.0" encoding="UTF-8"?>
+      <Configuration xmlns:xi="http://www.w3.org/2001/XInclude"
+      status="debug" packages="com.mavenir.billing.bas">
+      <Appenders>
+      <Console name="Console" target="SYSTEM_OUT">
+        <!-- <PatternLayout pattern="%style{%d{ISO8601}}{black} %highlight{%-5level
+          }[%style{%t}{bright,blue}] %style{%C{1.}}{bright,yellow}: %msg%n%throwable"
+          /> -->
+        <JSONLayout complete="false" compact="true"
+          eventEol="true" objectMessageAsJsonObjects="true"
+          includeTimeMillis="true">
+          <KeyValuePair key="timestamp"
+            value="$${date:yyyy-MM-dd'T'HH:mm:ss.SSSZ}" />
+        </JSONLayout>
+
+
+      </Console>
+      <RollingFile name="RollingFile" fileName="./logs/bas.log"
+        filePattern="./logs/$${date:yyyy-MM}/pg-%d{dd-MMMM-yyyy}-%i.log.gz">
+        <PatternLayout>
+          <pattern>%d %p %C{1.} [%t] %m%n</pattern>
+        </PatternLayout>
+        <Policies>
+          <!-- rollover on startup, daily and when the file reaches 10 MegaBytes -->
+          <OnStartupTriggeringPolicy />
+          <SizeBasedTriggeringPolicy size="10 MB" />
+          <TimeBasedTriggeringPolicy />
+        </Policies>
+      </RollingFile>
+      <!-- <NatsAppender name="NatsAppender"> <PatternLayout pattern="[%d{yyyy-MM-dd
+        HH:mm:ss.SSS}][%-5level][%corrId]:[%-.15t] %logger{2}- %msg" /> <JSONLayout
+        complete="false" compact="true" eventEol="true" objectMessageAsJsonObjects="true"
+        includeTimeMillis="true"> <KeyValuePair key="timestamp" value="$${date:yyyy-MM-dd'T'HH:mm:ss.SSSZ}"
+        /> </JSONLayout> </NatsAppender> -->
+
+      </Appenders>
+      <Loggers>
+      <!-- LOG everything at INFO level -->
+      <Root level="info">
+        <AppenderRef ref="Console" />
+        <AppenderRef ref="RollingFile" />
+      </Root>
+      <Logger name="com.mavenir.billing.bas" level="debug"
+        additivity="false">
+        <AppenderRef ref="RollingFile" />
+        <AppenderRef ref="Console" />
+        <!-- <AppenderRef ref="NatsAppender" /> -->
+      </Logger>
+      <Logger name="org.springframework.web" level="debug"
+        additivity="false">
+        <AppenderRef ref="RollingFile" />
+        <AppenderRef ref="Console" />
+        <!-- <AppenderRef ref="NatsAppender" /> -->
+      </Logger>
+      <Logger name="org.springframework.data" level="debug">
+        <AppenderRef ref="RollingFile" />
+        <AppenderRef ref="Console" />
+        <!-- <AppenderRef ref="NatsAppender" /> -->
+      </Logger>
+      <Logger name="org.springframework.dao" level="debug">
+        <AppenderRef ref="RollingFile" />
+        <AppenderRef ref="Console" />
+        <!-- <AppenderRef ref="NatsAppender" /> -->
+      </Logger>
+      <Logger name="org.hibernate.SQL" level="debug">
+        <AppenderRef ref="RollingFile" />
+        <AppenderRef ref="Console" />
+        <!-- <AppenderRef ref="NatsAppender" /> -->
+      </Logger>
+      <Logger name="org.hibernate.type.descriptor.sql.BasicBinder"
+        level="trace">
+        <AppenderRef ref="RollingFile" />
+        <AppenderRef ref="Console" />
+        <!-- <AppenderRef ref="NatsAppender" /> -->
+      </Logger>
+      </Loggers>
+      </Configuration>
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bas-v1-env-cfg
+#  namespace: mvnr-mtcil-appln-billing-billing1
+  labels:
+    microSvcName: billaccountingservice
+    mtcilId: mtcil
+  annotations:
+    mtcil.com/tmaas: '{
+      "vendorId": "mvnr",
+      "mtcilId": "mtcil",
+      "nfClass": "appln",
+      "nfType": "billing",
+      "nfId": "billing1",
+      "nfServiceId": "billaccountingservice",
+      "nfServiceType": "billaccountingservice"
+    }'
+    svcVersion: "v1"
+#    nwFnPrefix: mvnr-mtcil-appln-billing-billing1
+data:
+  __CFG_TYPE: "env-cfg"
+  env_max_connection: "0"
+  env_cim_port: "0"
+  env_extdb_uri: "https://mav.couchdb.com:8081"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bas-v1-mgmt-cfg
+#  namespace: mvnr-mtcil-appln-billing-billing1
+  labels:
+    microSvcName: billaccountingservice
+    mtcilId: mtcil
+  annotations:
+    mtcil.com/tmaas: '{
+      "vendorId": "mvnr",
+      "mtcilId": "mtcil",
+      "nfClass": "appln",
+      "nfType": "billing",
+      "nfId": "billing1",
+      "nfServiceId": "billaccountingservice",
+      "nfServiceType": "billaccountingservice"
+    }'
+    svcVersion: "v1"
+#    nwFnPrefix: mvnr-mtcil-appln-billing-billing1
+    configMgmt: enabled
+data:
+  __CFG_TYPE: "mgmt-cfg"
+  revision: "0"
+  cim.json: |
+    {
+            "cimConfig": {
+                    "lmaas": {
+                            "max_file_size_in_mb": 10,
+                            "max_backup_files": 10,
+                            "max_age": 7,
+                            "buffer_size": 10000,
+                            "flush_timeout": 30,
+                            "logging_mode": "FILEANDSTDOUT",
+                            "prefer_local_daemonset": false
+                    },
+                    "haaas": {
+                            "hb_interval": 250,
+                            "hb_frequency": 2,
+                            "ha_timeout": 120
+                    },
+                    "cim_settings": {
+                            "enable_kpi": true,
+                            "log_level": "ALL",
+                            "cim_file_log": true,
+                            "num_garp_count": 1,
+                            "remote_svc_retry_count": 60,
+                            "ttl_timeout": 1
+                    },
+                    "app_settings": {
+                            "app_port": 9999,
+                            "http2_enabled": false
+                    }
+            }
+    }
+
+  cim.yang: |
+    module mavenir-billing1-cim-config {
+            namespace "urn:mavenir:ns:yang:cnp:cim:billing1";
+
+            prefix billing1-cim;
+
+            import ietf-inet-types { prefix inet; }
+
+            import tailf-common { prefix tailf; }
+
+            revision "2020-06-22" {
+                description "Removed common infra configurations";
+            }
+            container cimConfig {
+                    tailf:callpoint configUpdate {
+                                tailf:transaction-hook subtree;
+                            }
+                    container lmaas {
+                             leaf max_file_size_in_mb {
+                                            type int32 {
+                                                    range "1 .. 50";
+                                            }
+                                            mandatory true;
+                                            description "Maximum file size in MB to truncate.";
+                                    }
+
+                             leaf max_backup_files {
+                                            type int32 {
+                                                    range "1 .. 20";
+                                            }
+                                            mandatory true;
+                                            description "Maximum Backup files to keep.";
+                                    }
+                             leaf max_age {
+                                            type int32 {
+                                                    range "1 .. 30";
+                                            }
+                                            mandatory true;
+                                            description "Max age to keep backup file in days";
+                                    }
+                             leaf buffer_size {
+                                            type int32 {
+                                                    range "1000 .. 100000";
+                                            }
+                                            mandatory true;
+                                            description "Buffer size before writing to file in Bytes.";
+                                    }
+                             leaf flush_timeout {
+                                            type int32 {
+                                                    range "5 .. 30";
+                                            }
+                                            mandatory true;
+                                            description "Buffer flush to file timeout in seconds.";
+                                    }
+                             leaf logging_mode {
+                                             type enumeration {
+                                                     enum FILE;
+                                                     enum TCP;
+                                                     enum KAFKA;
+                                                     enum STDOUT;
+                                                     enum FILEANDSTDOUT;
+                                                }
+                                            mandatory true;
+                                            description "Logging Mode. Select FILE for file base logging or TCP for tcp based logging or KAFKA for logging to kafka.";
+                                    }
+                             leaf prefer_local_daemonset {
+                                            tailf:callpoint restartConfigUpdate {
+                                                    tailf:transaction-hook node;
+                                            }
+                                            type boolean;
+                                            mandatory true;
+                                            description "On true pod will send data to the local daemonset";
+                                    }
+                    }
+
+                    container haaas{
+                             leaf hb_interval {
+                                            tailf:callpoint restartConfigUpdate {
+                                                    tailf:transaction-hook node;
+                                            }
+                                            type int32 {
+                                                    range "100 .. 500";
+                                            }
+                                            mandatory true;
+                                            description "Heart beat interval in milli seconds.";
+                                    }
+                             leaf hb_frequency {
+                                            tailf:callpoint restartConfigUpdate {
+                                                    tailf:transaction-hook node;
+                                            }
+                                            type int32{
+                                                    range "1 .. 20";
+                                            }
+                                            mandatory true;
+                                            description "Heart beat frequency as aInteger";
+                                    }
+                             leaf ha_timeout {
+                                            tailf:callpoint restartConfigUpdate {
+                                                    tailf:transaction-hook node;
+                                            }
+                                            type int32 {
+                                                    range "60 .. 120";
+                                            }
+                                            mandatory true;
+                                            description "HA Timeout in seconds.";
+                                    }
+                  }
+                    container cim_settings {
+                             leaf enable_kpi {
+                                            type boolean;
+                                            mandatory true;
+                                            description "For promotheus metrics make kpi(key performance indecator) true.";
+                                    }
+                             leaf log_level {
+                                            type enumeration {
+                                                     enum INFO;
+                                                     enum DEBUG;
+                                                     enum ERROR;
+                                                     enum WARNING;
+                                                     enum EXCEPTION;
+                                                     enum ALL;
+                                                }
+                                            mandatory true;
+                                            description "Log Level for CIM to print. select all if want to print all levels.";
+                                    }
+                             leaf cim_file_log {
+                                            type boolean;
+                                            mandatory true;
+                                            description "Enable if CIM needs to maintain own log file for CIM.";
+                                    }
+                             leaf num_garp_count {
+                                            type int32 {
+                                                    range "0 .. 5";
+                                            }
+                                            mandatory true;
+                                            description "Number of gratuitous arp packet sent [0-5]";
+                                    }
+                            leaf remote_svc_retry_count {
+                                            type int32 {
+                                                    range "1 .. 600";
+                                            }
+                                            mandatory true;
+                                            description "Number of retry [1-600]";
+                                    }
+                            leaf ttl_timeout {
+                                            tailf:callpoint restartConfigUpdate {
+                                                    tailf:transaction-hook node;
+                                            }
+                                            type int32 {
+                                                    range "1 .. 600";
+                                            }
+                                            mandatory true;
+                                            description "TTL timeout [1-600]";
+                                    }
+
+                  }
+
+                    container app_settings {
+                                 leaf app_port {
+                                            type int32 {
+                                                    range "5000 .. 10000";
+                                            }
+                                            mandatory true;
+                                            description "Port to communicate with Application.";
+                                    }
+                             leaf http2_enabled {
+                                            tailf:callpoint restartConfigUpdate {
+                                                    tailf:transaction-hook node;
+                                            }
+                                            type boolean;
+                                            mandatory true;
+                                            description "Enable if client needs HTTP2 support.";
+                                    }
+                  }
+            }
+    }
+  eventdef-cim.json: |
+    {
+            "events": {
+            "CimConnectEtcdFailure": {
+                "eventType": "COMMUNICATION",
+                "perceivedSeverity": "CRITICAL",
+                "probableCause": "etcd communication failure",
+                "specificProblem": "CIM unable to establish connection to etcd",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+             },
+            "RoleAssignmentStatus": {
+                "eventType": "HA_ROLE_ASSIGNMENT",
+                "perceivedSeverity": "INFO",
+                "probableCause": "Role assignment status received for HA operation.",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "HAMonitoringFailure": {
+                "eventType": "HA_MONITORING",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "HA Failed To Monitor Application uS",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "LmaasTCPFailure": {
+                "eventType": "COMMUNICATION",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "TCP connection failure towards fluent-bit onbserved in LMaaS",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": "Verify fluent-bit is running."
+            },
+            "CimCommitConfigSuccess": {
+                "eventType": "COMMIT_CONFIG",
+                "perceivedSeverity": "INFO",
+                "probableCause": "A commit-config operation towards etcd is successful",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "CimCommitConfigFailure": {
+                "eventType": "COMMIT_CONFIG",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "A commit-config operation failed towards etcd",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "CimConfigUpdateSuccess": {
+                "eventType": "CONFIG_UPDATE",
+                "perceivedSeverity": "INFO",
+                "probableCause": "Successfully updated CIM configuration",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "CimConfigUpdateFailure": {
+                "eventType": "CONFIG_UPDATE",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "Failure updating CIM configuration",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            }
+        }
+    }
+    
+  updatePolicy.json: |
+    {
+        bcs: "Dynamic",
+        cim: "Dynamic"
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bas-v1-eventdef-cfg
+#  namespace: mvnr-mtcil-appln-billing-billing1
+  labels:
+    microSvcName: billaccountingservice
+    mtcilId: mtcil
+  annotations:
+    mtcil.com/tmaas: '{
+      "vendorId": "mvnr",
+      "mtcilId": "mtcil",
+      "nfClass": "appln",
+      "nfType": "billing",
+      "nfId": "billing1",
+      "nfServiceId": "billaccountingservice",
+      "nfServiceType": "billaccountingservice"
+    }'
+    svcVersion: "v1"
+#    nwFnPrefix: mvnr-mtcil-appln-billing-billing1
+data:
+  __CFG_TYPE: "eventdef-cfg"
+  events.json: |
+    {
+            "events": {
+                    "TestCriticalAlarmClear": {
+                            "eventType": "ALARMCRITICALTEST",
+                            "perceivedSeverity": "CLEAR",
+                            "probableCause": "Test Critical Alarm Clear",
+                            "specificProblem": "Alarm Clear",
+                            "rootCauseIndicator": "",
+                            "trendIndication": "",
+                            "correlatedNotifications": "TestCriticalAlarmSet",
+                            "additionalText": "",
+                            "proposedRepairAction": ""
+                    },
+                    "TestCriticalAlarmSet": {
+                                    "eventType": "ALARMCRITICALTEST",
+                                    "perceivedSeverity": "CRITICAL",
+                                    "probableCause": "Probable Cause for Test Critical Alarm",
+                                    "specificProblem": "Specific Problem for Test Critical Alarm",
+                                    "rootCauseIndicator": "Root Cause for Test Critical Alarm",
+                                    "trendIndication": "",
+                                    "correlatedNotifications": "",
+                                    "additionalText": "",
+                                    "proposedRepairAction": ""
+                    },
+                    "TestMajorAlarmClear": {
+                            "eventType": "ALARMMAJORTEST",
+                            "perceivedSeverity": "CLEAR",
+                            "probableCause": "Test Major Alarm Clear",
+                            "specificProblem": "Alarm Clear",
+                            "rootCauseIndicator": "",
+                            "trendIndication": "",
+                            "correlatedNotifications": "TestMajorAlarmSet",
+                            "additionalText": "",
+                            "proposedRepairAction": ""
+                    },
+                    "TestMajorAlarmSet": {
+                                    "eventType": "ALARMMAJORTEST",
+                                    "perceivedSeverity": "MAJOR",
+                                    "probableCause": "Probable Cause for Test Major Alarm",
+                                    "specificProblem": "Specific Problem for Test Major Alarm",
+                                    "rootCauseIndicator": "Root Cause for Test Major Alarm",
+                                    "trendIndication": "",
+                                    "correlatedNotifications": "",
+                                    "additionalText": "",
+                                    "proposedRepairAction": ""
+                    },
+                    "TestMinorAlarmClear": {
+                            "eventType": "ALARMMINORTEST",
+                            "perceivedSeverity": "CLEAR",
+                            "probableCause": "Test Minor Alarm Clear",
+                            "specificProblem": "Alarm Clear",
+                            "rootCauseIndicator": "",
+                            "trendIndication": "",
+                            "correlatedNotifications": "TestMinorAlarmSet",
+                            "additionalText": "",
+                            "proposedRepairAction": ""
+                    },
+                    "TestMinorAlarmSet": {
+                                    "eventType": "ALARMMINORTEST",
+                                    "perceivedSeverity": "MINOR",
+                                    "probableCause": "Probable Cause for Test Minor Alarm",
+                                    "specificProblem": "Specific Problem for Test Minor Alarm",
+                                    "rootCauseIndicator": "Root Cause for Test Minor Alarm",
+                                    "trendIndication": "",
+                                    "correlatedNotifications": "",
+                                    "additionalText": "",
+                                    "proposedRepairAction": ""
+                    },
+                    "TestInfoEvent": {
+                                    "eventType": "EVENTINFOTEST",
+                                    "perceivedSeverity": "INFO",
+                                    "probableCause": "Probable Cause for Test Info Event",
+                                    "specificProblem": "Specific Problem for Test Info Event",
+                                    "rootCauseIndicator": "Root Cause for Test Info Event",
+                                    "trendIndication": "",
+                                    "correlatedNotifications": "TestInfoEvent",
+                                    "additionalText": "",
+                                    "proposedRepairAction": ""
+                    },
+                    "TestWarningEvent": {
+                                    "eventType": "EVENTWARNTEST",
+                                    "perceivedSeverity": "WARNING",
+                                    "probableCause": "Probable Cause for Test Warning Event",
+                                    "specificProblem": "Specific Problem for Test Warning Event",
+                                    "rootCauseIndicator": "Root Cause for Test Info Warning",
+                                    "trendIndication": "",
+                                    "correlatedNotifications": "TestWarningEvent",
+                                    "additionalText": "",
+                                    "proposedRepairAction": ""
+                    },
+                    "TESTPODRUNNING": {
+                                    "eventType": "TEST_TCA",
+                                    "perceivedSeverity": "MAJOR",
+                                    "probableCause": "Probable Cause for Test TCA Event",
+                                    "specificProblem": "Specific Problem for Test TCA Event",
+                                    "rootCauseIndicator": "Root Cause for Test TCA Warning",
+                                    "trendIndication": "",
+                                    "correlatedNotifications": "",
+                                    "additionalText": "",
+                                    "proposedRepairAction": "",
+                                    "domain": "thresholdCrossingAlert"
+                    },
+                    "TESTHB": {
+                                    "eventType": "TEST_HB_AMF",
+                                    "perceivedSeverity": "MAJOR",
+                                    "probableCause": "Probable Cause for Test HB",
+                                    "specificProblem": "Specific Problem for Test HB",
+                                    "rootCauseIndicator": "Root Cause for Test HB",
+                                    "trendIndication": "",
+                                    "correlatedNotifications": "TestTCAEvent",
+                                    "additionalText": "",
+                                    "proposedRepairAction": "",
+                                    "domain": "heartbeat"
+                   }
+            }
+    }
+  eventsdef-cim.json: |
+    {
+            "events": {
+            "CimConnectEtcdFailure": {
+                "eventType": "COMMUNICATION",
+                "perceivedSeverity": "CRITICAL",
+                "probableCause": "etcd communication failure",
+                "specificProblem": "CIM unable to establish connection to etcd",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+             },
+            "RoleAssignmentStatus": {
+                "eventType": "HA_ROLE_ASSIGNMENT",
+                "perceivedSeverity": "INFO",
+                "probableCause": "Role assignment status received for HA operation.",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "HAMonitoringFailure": {
+                "eventType": "HA_MONITORING",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "HA Failed To Monitor Application uS",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "LmaasTCPFailure": {
+                "eventType": "COMMUNICATION",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "TCP connection failure towards fluent-bit onbserved in LMaaS",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": "Verify fluent-bit is running."
+            },
+            "CimCommitConfigSuccess": {
+                "eventType": "COMMIT_CONFIG",
+                "perceivedSeverity": "INFO",
+                "probableCause": "A commit-config operation towards etcd is successful",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "CimCommitConfigFailure": {
+                "eventType": "COMMIT_CONFIG",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "A commit-config operation failed towards etcd",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "CimConfigUpdateSuccess": {
+                "eventType": "CONFIG_UPDATE",
+                "perceivedSeverity": "INFO",
+                "probableCause": "Successfully updated CIM configuration",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            },
+            "CimConfigUpdateFailure": {
+                "eventType": "CONFIG_UPDATE",
+                "perceivedSeverity": "MAJOR",
+                "probableCause": "Failure updating CIM configuration",
+                "specificProblem": "",
+                "rootCauseIndicator": "",
+                "trendIndication": "",
+                "correlatedNotifications": "",
+                "additionalText": "",
+                "proposedRepairAction": ""
+            }
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bas-v1-alerts-cfg
+#  namespace: mvnr-mtcil-appln-billing-billing1
+  labels:
+    microSvcName: billaccountingservice
+    mtcilId: mtcil
+  annotations:
+    mtcil.com/tmaas: '{
+      "vendorId": "mvnr",
+      "mtcilId": "mtcil",
+      "nfClass": "appln",
+      "nfType": "billing",
+      "nfId": "billing1",
+      "nfServiceId": "billaccountingservice",
+      "nfServiceType": "billaccountingservice"
+    }'
+    svcVersion: "v1"
+    #nwFnPrefix: mvnr-mtcil-appln-billing-billing1
+data:
+  __CFG_TYPE: "alerts-cfg"
+  alerts.yml: |
+    groups:
+    - name: testbasapp
+      rules:
+      - alert: TEST APP RUNNING
+        expr: kube_pod_container_status_running{namespace="mvnr-mtcil1-appln-billing-br"} == 1
+        for: 15m
+        expr: http_request_total{namespace="mvnrST-5gc-amf"} > 1
+        labels:
+          severity: major
+        annotations:
+          sourceId: "{{ $labels.instance }}"
+          eventName: "TESTPODRUNNING"
+          message: "Instance {{$labels.instance}} pod running successfully"
+          namespace: "mvnr-mtcil-appln-amf-bcs"
+          podId: "{{ $labels.pod }}"
+          microservice: "bcs"
+          svcVersion: "v1"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bas-v1-metrics-cfg
+#  namespace: mvnr-mtcil-appln-billing-billing1
+  labels:
+    microSvcName: billaccountingservice
+    mtcilId: mtcil
+  annotations:
+    mtcil.com/tmaas: '{
+      "vendorId": "mvnr",
+      "mtcilId": "mtcil",
+      "nfClass": "appln",
+      "nfType": "billing",
+      "nfId": "billing1",
+      "nfServiceId": "billaccountingservice",
+      "nfServiceType": "billaccountingservice"
+    }'
+    svcVersion: "v1"
+#    nwFnPrefix: mvnr-mtcil-appln-billing-billing1
+data:
+  __CFG_TYPE: "metrics-cfg"
+  metrics.yml: |
+    metrics:
+      AdditionalObjects:
+        -
+          object_name: DUMetrics
+          object_instance: DUActiveSessions
+          expr: "du_number_live_session"
+          object_keys:
+            -
+              expr: "{{.labels.DUId}}"
+              name: DUId
+            -
+              expr: "{{.labels.CUId}}"
+              name: CUId
+        -
+          object_name: DUMetrics
+          object_instance: DUTotalRequest
+          expr: "num_total_request{DUId!=''}"
+          object_keys:
+            -
+              expr: "{{.labels.DUId}}"
+              name: DUId
+            -
+              expr: "{{.labels.CUId}}"
+              name: CUId
+
+---
+
+# Source: billing/charts/bcs/templates/serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: billaccountingservice
+#  namespace: mvnr-mtcil-appln-billing-billing1
+  labels:
+    microSvcName: billaccountingservice
+    mtcilId: mtcil
+  annotations:
+    mtcil.com/tmaas: '{
+      "vendorId": "mvnr",
+      "mtcilId": "mtcil",
+      "nfClass": "appln",
+      "nfType": "billing",
+      "nfId": "billing1",
+      "nfServiceId": "billaccountingservice",
+      "nfServiceType": "billaccountingservice"
+    }'
+    svcVersion: "v1"
